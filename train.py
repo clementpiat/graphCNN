@@ -43,7 +43,7 @@ def main(args):
     n_features, n_classes = train_dataset.features.shape[1], train_dataset.labels.shape[1]
 
     # create the model, loss function and optimizer
-    device = torch.device("cpu" if args.gpu < 0 else "cuda:" + str(args.gpu))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # BasicGraphModel
     model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, input_size=n_features,
                             hidden_size=256, output_size=n_classes, nonlinearity=F.elu).to(device)
