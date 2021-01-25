@@ -46,7 +46,7 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # BasicGraphModel
     model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, input_size=n_features,
-                            hidden_size=256, output_size=n_classes, nonlinearity=F.elu).to(device)
+                            hidden_size=256, output_size=n_classes, nonlinearity=F.elu, device=device).to(device)
     loss_fcn = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters())
 

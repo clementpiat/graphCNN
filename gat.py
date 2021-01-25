@@ -6,12 +6,13 @@ from tqdm import tqdm
 
 class AttentionGraphModel(nn.Module):
 
-    def __init__(self, g, n_layers, input_size, hidden_size, output_size, nonlinearity):
+    def __init__(self, g, n_layers, input_size, hidden_size, output_size, nonlinearity, device):
         """
         Highly inspired from https://arxiv.org/pdf/1710.10903.pdf
         """
         super().__init__()
 
+        self.device = device
         self.g = g
         self.activation = nonlinearity
         self.linears = nn.ModuleList()
@@ -57,16 +58,16 @@ class AttentionGraphModel(nn.Module):
         h = F.leaky_relu(linear(x), negative_slope=0.2)
         n_features = h.shape[1]
 
-        adjacency_matrix = self.g.adjacency_matrix().coalesce()
+        adjacency_matrix = self.g.adjacency_matrix().coalesce().to(self.device)
         indices = adjacency_matrix.indices()
         values = []
         for i,j in zip(indices[0], indices[1]):
             values.append(attn(torch.cat((h[i],h[j]))))
-        e = torch.sparse_coo_tensor(indices,values)
+        e = torch.sparse_coo_tensor(indices,values).to(self.device)
 
         alpha = torch.sparse.softmax(e, dim=1).coalesce()
         values = alpha.values()
-        h2 = torch.zeros(n_nodes, n_features)
+        h2 = torch.zeros(n_nodes, n_features).to(self.device)
         for i,j,v in zip(indices[0], indices[1], values):
             h2[i,:] += h[j,:] * v
 
