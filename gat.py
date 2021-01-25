@@ -60,14 +60,14 @@ class AttentionGraphModel(nn.Module):
 
         adjacency_matrix = self.g.adjacency_matrix().coalesce().to(self.device)
         indices = adjacency_matrix.indices()
-        values = []
-        for i,j in zip(indices[0], indices[1]):
-            values.append(attn(torch.cat((h[i],h[j]))))
-        e = torch.sparse_coo_tensor(indices,values).to(self.device)
+        values = torch.zeros(len(indices[0]), device=self.device)
+        for k, (i,j) in enumerate(zip(indices[0], indices[1])):
+            values[k] = attn(torch.cat((h[i],h[j])))
+        e = torch.sparse_coo_tensor(indices,values)
 
         alpha = torch.sparse.softmax(e, dim=1).coalesce()
         values = alpha.values()
-        h2 = torch.zeros(n_nodes, n_features).to(self.device)
+        h2 = torch.zeros(n_nodes, n_features, device=self.device)
         for i,j,v in zip(indices[0], indices[1], values):
             h2[i,:] += h[j,:] * v
 
