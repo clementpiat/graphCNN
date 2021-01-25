@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Linear
 from torch import nn
+from tqdm import tqdm
 
 class AttentionGraphModel(nn.Module):
 
@@ -12,7 +13,6 @@ class AttentionGraphModel(nn.Module):
         super().__init__()
 
         self.g = g
-        self.adjacency_matrix = self.g.adjacency_matrix()
         self.activation = nonlinearity
         self.linears = nn.ModuleList()
         self.attn_layers = nn.ModuleList()
@@ -31,26 +31,44 @@ class AttentionGraphModel(nn.Module):
             outputs = self.forward_attention(outputs, linear, attn)
         return outputs
 
-    def forward_attention(self, x, linear, attn, final_layer=False):
-        # TODO: test that
+    def forward_attention_dense(self, x, linear, attn, final_layer=False):
         n_nodes = x.shape[0]
-        h = F.leaky_relu(linear(x), negative_slope=0.2)
-        e = torch.zeros((n_nodes,n_nodes))
+        h = F.leaky_relu(linear(x), negative_slope=0.2)    
+        adjacency_matrix = self.g.adjacency_matrix().coalesce()
 
         big_h_left = torch.stack([torch.stack([h[i]]*n_nodes, dim=0) for i in range(n_nodes)])
         big_h_right = torch.stack([h]*n_nodes, dim=0)
         big_h = torch.stack([big_h_left, big_h_right], dim=1)
-
         e = attn(big_h).view(n_nodes, n_nodes)
 
-        
-        e_neighb = torch.sum(torch.exp(e * self.adjacency_matrix), dim=1) 
+        e_neighb = torch.sum(torch.exp(e * adjacency_matrix), dim=1) 
         e_neighb = e_neighb - n_nodes + torch.tensor([self.g.out_degrees(i) for i in range(n_nodes)])
         e_neighb = torch.stack([e_neighb]*n_nodes, dim=1)
 
-        alpha = torch.exp(e) / e_neighb * self.adjacency_matrix
+        alpha = e / e_neighb
         prod = torch.stack([h.unsqueeze(2)]*n_nodes,dim=2) * torch.stack([alpha.unsqueeze(1)]*n_nodes,dim=1)
         h2 = torch.sum(prod, dim=0).squeeze().T
+
+        return self.activation(h2)
+
+
+    def forward_attention(self, x, linear, attn, final_layer=False):
+        n_nodes = x.shape[0]
+        h = F.leaky_relu(linear(x), negative_slope=0.2)
+        n_features = h.shape[1]
+
+        adjacency_matrix = self.g.adjacency_matrix().coalesce()
+        indices = adjacency_matrix.indices()
+        values = []
+        for i,j in zip(indices[0], indices[1]):
+            values.append(attn(torch.cat((h[i],h[j]))))
+        e = torch.sparse_coo_tensor(indices,values)
+
+        alpha = torch.sparse.softmax(e, dim=1).coalesce()
+        values = alpha.values()
+        h2 = torch.zeros(n_nodes, n_features)
+        for i,j,v in zip(indices[0], indices[1], values):
+            h2[i,:] += h[j,:] * v
 
         if final_layer:
             #TODO
