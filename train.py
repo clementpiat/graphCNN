@@ -53,7 +53,6 @@ def main(args):
     # train and test
     if args.mode == "train":
         train(model, loss_fcn, device, optimizer, train_dataloader, test_dataset)
-        return #TOREMOVE 
         torch.save(model.state_dict(), MODEL_STATE_FILE)
     model.load_state_dict(torch.load(MODEL_STATE_FILE))
     return test(model, loss_fcn, device, test_dataloader)
