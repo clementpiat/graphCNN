@@ -45,7 +45,7 @@ def main(args):
     # create the model, loss function and optimizer
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # Model
-    model = AttentionGraphModel(g=train_dataset.graph, n_layers=2, n_head=8, input_size=n_features,
+    model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, n_head=16, input_size=n_features,
                             hidden_size=256, output_size=n_classes, nonlinearity=F.elu, device=device).to(device)
     loss_fcn = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters())
@@ -81,7 +81,7 @@ def train(model, loss_fcn, device, optimizer, train_dataloader, test_dataset):
         loss_data = np.array(losses).mean()
         print("Epoch {:05d} | Loss: {:.4f}".format(epoch + 1, loss_data))
 
-        if epoch % 5 == 0:
+        if epoch % 1 == 0:
             scores = []
             for batch, test_data in enumerate(test_dataset):
                 subgraph, features, labels = test_data
