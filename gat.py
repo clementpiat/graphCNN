@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.nn import Linear
+from torch.nn import Linear, Conv1d
 from torch import nn
 from tqdm import tqdm
 
@@ -14,6 +14,7 @@ class AttentionGraphModel(nn.Module):
 
         self.n_head = n_head
         self.n_layers = n_layers
+        self.hidden_size = hidden_size
         self.device = device
         self.g = g
         self.activation = nonlinearity
@@ -54,7 +55,40 @@ class AttentionGraphModel(nn.Module):
 
     #     return self.activation(h2)
 
-    def get_h2(self, attn, h, indices):
+    def get_h2(self, attn_layer, h, indices):
+        n_nodes, n_features = h.shape
+        values = torch.zeros(len(indices[0]), self.n_head, device=self.device)
+        h_conv = h.repeat(1,self.n_head).view(n_nodes,1,n_features*self.n_head,1)
+        for k, (i,j) in enumerate(zip(indices[0], indices[1])):
+            values[k,:] = attn_layer(torch.cat((h_conv[i],h_conv[j]), dim=1)).view(-1)
+
+        e = torch.sparse_coo_tensor(indices,values)
+
+        alpha = torch.sparse.softmax(e, dim=1).coalesce()
+        values = alpha.values()
+        h2 = torch.zeros(n_nodes, n_features, self.n_head, device=self.device)
+        for i,j,v in zip(indices[0], indices[1], values):
+            h2[i,:,:] += h[j,:].unsqueeze(-1) @ v.unsqueeze(0)
+
+        return h2
+
+    def get_h2_old(self, attn_layer, h, indices):
+        n_nodes, n_features = h.shape
+        values = torch.zeros(len(indices[0]), self.n_head, device=self.device)
+        for k, (i,j) in enumerate(zip(indices[0], indices[1])):
+            for p, attn_head in enumerate(attn_layer):
+                values[k,p] = attn_head(torch.cat((h[i],h[j]))) 
+        e = torch.sparse_coo_tensor(indices,values)
+
+        alpha = torch.sparse.softmax(e, dim=1).coalesce()
+        values = alpha.values()
+        h2 = torch.zeros(n_nodes, n_features, self.n_head, device=self.device)
+        for i,j,v in zip(indices[0], indices[1], values):
+            h2[i,:,:] += h[j,:].unsqueeze(-1) @ v.unsqueeze(0)
+
+        return h2
+
+    def get_h2_old(self, attn, h, indices):
         values = torch.zeros(len(indices[0]), device=self.device)
         for k, (i,j) in enumerate(zip(indices[0], indices[1])):
             values[k] = attn(torch.cat((h[i],h[j])))
@@ -73,20 +107,35 @@ class AttentionGraphModel(nn.Module):
 
         adjacency_matrix = self.g.adjacency_matrix().coalesce().to(self.device)
         indices = adjacency_matrix.indices()
-        h2_list = [self.get_h2(attn_head, h, indices) for attn_head in attn_layer]
+        # h2_list = [self.get_h2(attn_head, h, indices) for attn_head in attn_layer]
 
+        # if final_layer:
+        #     h2_list = list(map(lambda t: t.unsqueeze(0), h2_list))
+        #     return self.activation(torch.cat(h2_list).mean(dim=0))
+        # else:
+        #     h2_list = list(map(self.activation, h2_list))
+        #     return torch.cat(h2_list, dim=1)
+        h2 = self.get_h2(attn_layer, h, indices)
+        """
+        h2 is of size (n_nodes,n_hidden_features,n_head)
+        """
         if final_layer:
-            h2_list = list(map(lambda t: t.unsqueeze(0), h2_list))
-            return self.activation(torch.cat(h2_list).mean(dim=0))
+            return self.activation(h2.mean(dim=-1))
         else:
-            h2_list = list(map(self.activation, h2_list))
-            return torch.cat(h2_list, dim=1)
+            return self.activation(h2.view(h2.size(0),-1))
 
-    def add_attention_layer(self, n_features, n_hidden_features, n_head):
+    def add_attention_layer_old(self, n_features, n_hidden_features, n_head):
         linear = Linear(n_features, n_hidden_features)
         attn_layer = nn.ModuleList(
             [Linear(n_hidden_features*2, 1) for i in range(n_head)]
         )
 
+        self.linears.append(linear)
+        self.attn_layers.append(attn_layer)
+
+    def add_attention_layer(self, n_features, n_hidden_features, n_head):
+        linear = Linear(n_features, n_hidden_features)
+        attn_layer = Conv1d(n_hidden_features*2*n_head, n_head, kernel_size=1, groups=n_head)
+        
         self.linears.append(linear)
         self.attn_layers.append(attn_layer)
