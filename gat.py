@@ -3,7 +3,6 @@ import torch.nn.functional as F
 from torch.nn import Linear, Conv1d
 from torch import nn
 from tqdm import tqdm
-from time import time
 
 class AttentionGraphModel(nn.Module):
 
@@ -62,20 +61,19 @@ class AttentionGraphModel(nn.Module):
         alpha = torch.sparse.softmax(e, dim=1).coalesce()
         values = alpha.values()
     
-        t = time()
+        
         h2 = torch.zeros(n_nodes, n_features, self.n_head, device=self.device)
         for i,j,v in zip(indices[0], indices[1], values):
             h2[i,:,:] += h[j,:].unsqueeze(-1) @ v.unsqueeze(0)
-        print(time()-t)
-        t = time()
-        h2 = torch.zeros(n_nodes, n_features, self.n_head, device=self.device)
-        h = h.unsqueeze(2) # (n_nodes, n_features, 1)
-        values = values.unsqueeze(1) # (n_edges, 1, n_head)
-        for i in range(n_nodes):
-            h_neigh = torch.cat([h[j,:] for j in adjacency_list[i]], dim=1)
-            values_neigh = torch.cat([values[j,:] for j in adjacency_list[i]], dim=0)
-            h2[i] = h_neigh @ values_neigh
-        print(time()-t)
+        # t = time()
+        # h2 = torch.zeros(n_nodes, n_features, self.n_head, device=self.device)
+        # h = h.unsqueeze(2) # (n_nodes, n_features, 1)
+        # values = values.unsqueeze(1) # (n_edges, 1, n_head)
+        # for i in range(n_nodes):
+        #     h_neigh = torch.cat([h[j,:] for j in adjacency_list[i]], dim=1)
+        #     values_neigh = torch.cat([values[j,:] for j in adjacency_list[i]], dim=0)
+        #     h2[i] = h_neigh @ values_neigh
+        # print(time()-t)
 
         return h2
 

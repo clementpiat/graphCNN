@@ -10,6 +10,7 @@ from dgl.nn.pytorch import GraphConv
 from sklearn.metrics import f1_score
 from torch import nn, optim
 from torch.utils.data import DataLoader
+from time import time
 
 from gat import AttentionGraphModel
 
@@ -73,9 +74,13 @@ def train(model, loss_fcn, device, optimizer, train_dataloader, test_dataset):
             for layer in model.layers:
                 layer.g = subgraph
 
+            t = time()
             logits = model(features.float())
+            print(f"Time forward: {time()-t}")
             #print("Logits computed")
+            t = time()
             loss = loss_fcn(logits, labels.float())
+            print(f"Time backward: {time()-t}")
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
