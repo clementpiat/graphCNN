@@ -45,8 +45,10 @@ def main(args):
     # create the model, loss function and optimizer
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # Model
-    model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, n_head=16, input_size=n_features,
-                            hidden_size=256, output_size=n_classes, nonlinearity=F.elu, device=device).to(device)
+    # model = BasicGraphModel(g=train_dataset.graph, n_layers=1, input_size=n_features,
+    #                         hidden_size=256, output_size=n_classes, nonlinearity=F.elu).to(device)
+    model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, n_head=64, input_size=n_features,
+                            hidden_size=128, output_size=n_classes, nonlinearity=F.elu, device=device).to(device)
     loss_fcn = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters())
 
@@ -64,7 +66,7 @@ def train(model, loss_fcn, device, optimizer, train_dataloader, test_dataset):
         losses = []
         for batch, data in enumerate(train_dataloader):
             subgraph, features, labels = data 
-            print(subgraph)
+            #print(subgraph)
             features = features.to(device)
             labels = labels.to(device)
             model.g = subgraph
@@ -72,7 +74,7 @@ def train(model, loss_fcn, device, optimizer, train_dataloader, test_dataset):
                 layer.g = subgraph
 
             logits = model(features.float())
-            print("Logits computed")
+            #print("Logits computed")
             loss = loss_fcn(logits, labels.float())
             optimizer.zero_grad()
             loss.backward()
