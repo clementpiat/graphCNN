@@ -48,7 +48,7 @@ def main(args):
     # Model
     # model = BasicGraphModel(g=train_dataset.graph, n_layers=1, input_size=n_features,
     #                         hidden_size=256, output_size=n_classes, nonlinearity=F.elu).to(device)
-    model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, n_head=64, input_size=n_features,
+    model = AttentionGraphModel(g=train_dataset.graph, n_layers=1, n_head=2, input_size=n_features,
                             hidden_size=128, output_size=n_classes, nonlinearity=F.elu, device=device).to(device)
     loss_fcn = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters())
@@ -80,10 +80,10 @@ def train(model, loss_fcn, device, optimizer, train_dataloader, test_dataset):
             #print("Logits computed")
             t = time()
             loss = loss_fcn(logits, labels.float())
-            print(f"Time backward: {time()-t}")
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            print(f"Time backward: {time()-t}")
             losses.append(loss.item())
         loss_data = np.array(losses).mean()
         print("Epoch {:05d} | Loss: {:.4f}".format(epoch + 1, loss_data))
